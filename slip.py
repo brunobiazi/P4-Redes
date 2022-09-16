@@ -1,3 +1,4 @@
+quebra = b''
 class CamadaEnlace:
     ignore_checksum = False
 
@@ -51,6 +52,13 @@ class Enlace:
         # TODO: Preencha aqui com o código para enviar o datagrama pela linha
         # serial, fazendo corretamente a delimitação de quadros e o escape de
         # sequências especiais, de acordo com o protocolo CamadaEnlace (RFC 1055).
+        datagrama=datagrama.replace(b'\xdb', b'\xdb\xdd')
+        datagrama=datagrama.replace(b'\xc0', b'\xdb\xdc')
+
+
+        datagrama = b'\xc0' + datagrama + b'\xc0'
+        self.linha_serial.enviar(datagrama)
+
         pass
 
     def __raw_recv(self, dados):
@@ -61,4 +69,26 @@ class Enlace:
         # vir quebrado de várias formas diferentes - por exemplo, podem vir
         # apenas pedaços de um quadro, ou um pedaço de quadro seguido de um
         # pedaço de outro, ou vários quadros de uma vez só.
-        pass
+        global quebra
+        dados = quebra + dados
+        if dados != b'':
+            dados_real = dados.split(b'\xc0')
+            tamanho_real = len(dados_real)
+            if dados.endswith(b'\xc0'):
+                quebra = b''
+            else:
+                quebra = dados_real[tamanho_real-1]    
+            
+            for j in range(len(dados_real)-1):
+                dados_real[j]=dados_real[j].replace(b'\xdb\xdc',b'\xc0')   
+                dados_real[j]=dados_real[j].replace( b'\xdb\xdd',b'\xdb')
+                 
+                if dados_real[j] != b'':
+                    try:
+                        self.callback(dados_real[j])
+                    except:
+                    # ignora a exceção, mas mostra na tela
+                        import traceback
+                        traceback.print_exc()
+                    finally:   
+                        dados = b''
